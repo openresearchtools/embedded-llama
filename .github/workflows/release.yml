@@ -83,7 +83,6 @@ jobs:
 
   macOS-x64:
     if: ${{ false }}
-    if: ${{ false }}
     runs-on: macos-15-intel
 
     steps:
@@ -532,7 +531,6 @@ jobs:
 
   windows-sycl:
     if: ${{ false }}
-    if: ${{ false }}
     runs-on: windows-2022
 
     defaults:
@@ -613,7 +611,6 @@ jobs:
           name: llama-bin-win-sycl-x64.zip
 
   windows-hip:
-    if: ${{ false }}
     if: ${{ false }}
     runs-on: windows-2022
 
@@ -721,7 +718,6 @@ jobs:
           name: llama-bin-win-hip-${{ matrix.name }}-x64.zip
 
   ios-xcode-build:
-    if: ${{ false }}
     if: ${{ false }}
     runs-on: macos-15
 
@@ -914,6 +910,8 @@ jobs:
                 });
               }
             }
+
+
 
 
 
