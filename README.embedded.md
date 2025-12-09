@@ -18,31 +18,166 @@ cmake --build build --target llama-embedded-cli
 
 The target lives in `tools/embedded-cli` and will be included automatically when `LLAMA_BUILD_SERVER` is on.
 
-## Usage
-`llama-embedded-cli` accepts the same model flags as `llama-server`/`llama-cli`, plus a few helpers:
+## Usage (read this first)
+`llama-embedded-cli` has **two layers of flags**:
+
+- Embedded CLI layer (how you tell it *what to do* and *what text/JSON to use*)
+- Normal llama.cpp layer (all the usual model / GPU / context options)
+
+Anything it does **not** recognize as an embedded-CLI flag is passed straight through to the upstream llama.cpp argument parser. That means all of this still works:
 
 ```sh
-# Chat/completions in one shot (no streaming by default unless you add --stream)
-./llama-embedded-cli chat --text "hello" -m models/foo.gguf --no-stream
-
-# Embeddings
-./llama-embedded-cli embeddings --text "embed this" -m models/foo.gguf
-
-# Rerank with two documents
-./llama-embedded-cli rerank --query "python"   --document "Python is great."   --document "I like rust."   --top-n 1 -m models/foo.gguf
-
-# Feed a full JSON request (same shape as the HTTP API)
-./llama-embedded-cli chat --body-file request.json -m models/foo.gguf
+# Bigger context + partial GPU offload
+./llama-embedded-cli chat --text "hi" \
+  -m models/model.gguf \
+  --ctx-size 16384 \
+  --gpu-layers 40
 ```
 
-Key options (in addition to the normal llama flags such as `-m`, `--n-gpu-layers`, etc.):
-- `--op <chat|completion|embeddings|rerank|tokenize|detokenize|apply-template|props>` pick a route (positional first arg also works)
-- `--text` plain text for chat/completions/embeddings/tokenize
-- `--query`, `--document`/`--documents-file`, `--top-n` helpers for rerank
-- `--body`, `--body-file`, `--stdin` send raw JSON matching the REST payloads
-- `--stream` / `--no-stream` override the `stream` flag when auto-building chat/completion bodies
+On macOS, if you unpack the zip into `build/bin`, run it from there so the Metal/Vulkan DLLs are on the loader path:
 
-If you need a route not covered by the helpers, pass the exact JSON body you would send to `llama-server` via `--body`, `--body-file`, or `--stdin`.
+```sh
+cd ~/Downloads/embedded-llama-bin/build/bin
+DYLD_LIBRARY_PATH=$(pwd) ./llama-embedded-cli --help-cli
+```
+
+### Help flags
+
+- `./llama-embedded-cli --help-cli` → **embedded CLI usage + examples** (chat/embeddings/rerank/tokenize).
+- `./llama-embedded-cli --help` or `-h` → full upstream llama.cpp/server flags (ctx-size, gpu-layers, hf-repo, etc.).
+
+If you’re embedding this binary into an app, treat `--help-cli` as the canonical contract for how to call it.
+
+### Core operations
+
+All routes are selected via `--op` / `--mode` / `--route` **or** by using the first positional argument (`chat`, `completion`, `embeddings`, `rerank`, `tokenize`, etc.).
+
+#### Chat
+
+One-shot chat using plain text:
+
+```sh
+./llama-embedded-cli chat \
+  --text "hello from embedded-cli" \
+  -m models/chat-model.gguf \
+  --no-stream           # or --stream for incremental tokens
+```
+
+Equivalent JSON body (same as `/v1/chat/completions`):
+
+```sh
+echo '{"messages":[{"role":"user","content":"hello"}],"stream":false}' | \
+  ./llama-embedded-cli chat --stdin -m models/chat-model.gguf
+```
+
+#### Completion
+
+```sh
+./llama-embedded-cli completion \
+  --text "Once upon a time" \
+  -m models/model.gguf \
+  --no-stream
+```
+
+This builds a JSON body like:
+
+```jsonc
+{ "prompt": "Once upon a time", "stream": false }
+```
+
+#### Embeddings
+
+```sh
+./llama-embedded-cli embeddings \
+  --text "embed this" \
+  -m models/embedding-model.gguf
+```
+
+This is equivalent to the embeddings HTTP route and builds:
+
+```jsonc
+{ "input": "embed this" }
+```
+
+You can also send the full JSON yourself:
+
+```sh
+echo '{"input":["foo","bar"]}' | \
+  ./llama-embedded-cli embeddings --stdin -m models/embedding-model.gguf
+```
+
+#### Rerank
+
+```sh
+./llama-embedded-cli rerank \
+  --query "python" \
+  --document "Python is great." \
+  --document "I like Rust." \
+  --top-n 1 \
+  -m models/rerank-model.gguf
+```
+
+Or with a documents file:
+
+```sh
+./llama-embedded-cli rerank \
+  --query "python" \
+  --documents-file docs.txt \
+  --top-n 3 \
+  -m models/rerank-model.gguf
+```
+
+The rerank payload looks like:
+
+```jsonc
+{
+  "query": "python",
+  "documents": ["Python is great.", "I like Rust."],
+  "top_n": 1
+}
+```
+
+#### Tokenize / detokenize
+
+```sh
+./llama-embedded-cli tokenize \
+  --text "tokenize this" \
+  -m models/model.gguf
+
+./llama-embedded-cli detokenize \
+  --body '{"tokens":[1, 2, 3]}' \
+  -m models/model.gguf
+```
+
+You can always fall back to sending the exact JSON body the HTTP API expects and using `--body`, `--body-file`, or `--stdin`.
+
+### Embedded-CLI-specific flags
+
+These are parsed first; everything else is forwarded unchanged to llama.cpp:
+
+- `--op` / `--mode` / `--route` / first positional: route name (`chat`, `completion`, `embeddings`, `rerank`, `tokenize`, `detokenize`, `apply-template`, `props`).
+- `--text`, `-t`: plain text for chat/completion/embeddings/tokenize when not providing JSON.
+- `--body`, `--json`, `--input-json`: inline JSON string.
+- `--body-file`, `--json-file`: file with JSON request body.
+- `--stdin`: read JSON request body from stdin.
+- `--query`: rerank query text (falls back to `--text` / `-p`).
+- `--document`, `--doc`: add a rerank document (repeatable).
+- `--documents-file`: newline-delimited rerank documents.
+- `--top-n`: rerank cutoff (optional).
+- `--stream` / `--no-stream`: override the `stream` flag for chat/completion when the body is auto-built.
+- `--help-cli`: print this embedded-CLI usage and exit.
+
+### Normal llama.cpp flags (ctx, GPU, etc.)
+
+Everything not listed above is treated as a normal llama.cpp/server flag and forwarded untouched. Common ones:
+
+- `-m`, `--model`: model path (`.gguf`).
+- `--ctx-size`, `--n_ctx`: context length.
+- `--gpu-layers`, `-ngl`, `--n-gpu-layers`: number of layers to offload to GPU.
+- `--threads`, `--n-threads`, `--n-parallel`, etc.
+- Any other upstream server/CLI flag you see in `./llama-embedded-cli --help`.
+
+That means you can safely embed this binary in your app and still control context length and GPU offload exactly like you would with `llama-server` or `llama-cli`—the embedded CLI just adds a thin “routing + input” layer on top.
 
 ## Notes
 - The upstream README remains untouched (`README.md`) for easier rebases; this file documents the embedded CLI surface.
