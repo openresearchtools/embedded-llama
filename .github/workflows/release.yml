@@ -309,6 +309,8 @@ jobs:
             -DGGML_NATIVE=OFF \
             -DGGML_CPU_ALL_VARIANTS=ON \
             -DGGML_CUDA=ON \
+            -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
+            -DCUDAToolkit_ROOT=/usr/local/cuda \
             ${{ env.CMAKE_ARGS }}
           cmake --build build --config Release -j $(nproc)
       - name: Determine tag name
