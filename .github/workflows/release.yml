@@ -82,6 +82,7 @@ jobs:
           name: llama-bin-macos-arm64.tar.gz
 
   macOS-x64:
+    if: ${{ false }}
     runs-on: macos-15-intel
 
     steps:
@@ -295,10 +296,14 @@ jobs:
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update -y
-          sudo apt-get install -y cuda-toolkit-12-4
+          sudo apt-get install -y cuda-toolkit-12-4 cuda-compiler-12-4
 
       - name: Build
         id: cmake_build
+        env:
+          CUDACXX: /usr/local/cuda/bin/nvcc
+          CUDA_HOME: /usr/local/cuda
+          PATH: /usr/local/cuda/bin:${PATH}
         run: |
           cmake -B build \
             -DCMAKE_INSTALL_RPATH='$ORIGIN' \
@@ -548,6 +553,7 @@ jobs:
           name: cudart-llama-bin-win-cuda-${{ matrix.cuda }}-x64.zip
 
   windows-sycl:
+    if: ${{ false }}
     runs-on: windows-2022
 
     defaults:
@@ -628,6 +634,7 @@ jobs:
           name: llama-bin-win-sycl-x64.zip
 
   windows-hip:
+    if: ${{ false }}
     runs-on: windows-2022
 
     env:
@@ -734,6 +741,7 @@ jobs:
           name: llama-bin-win-hip-${{ matrix.name }}-x64.zip
 
   ios-xcode-build:
+    if: ${{ false }}
     runs-on: macos-15
 
     steps:
@@ -804,16 +812,13 @@ jobs:
     runs-on: ubuntu-latest
 
     needs:
+      - ubuntu-22-cuda
+      - ubuntu-22-cpu
+      - ubuntu-22-vulkan
       - windows
       - windows-cpu
       - windows-cuda
-      - windows-sycl
-      - windows-hip
-      - ubuntu-22-cpu
-      - ubuntu-22-vulkan
       - macOS-arm64
-      - macOS-x64
-      - ios-xcode-build
 
     steps:
       - name: Clone
@@ -929,4 +934,5 @@ jobs:
                 });
               }
             }
+
 
