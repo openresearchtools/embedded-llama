@@ -17,7 +17,6 @@ RELEASE_WORKFLOW = REPO / ".github" / "workflows" / "release.yml"
 DISABLED_JOBS = ["windows-sycl:", "windows-hip:", "macOS-x64:", "ios-xcode-build:"]
 # Jobs that must finish before publishing a release
 REQUIRED_NEEDS = [
-    "ubuntu-22-cuda",
     "ubuntu-22-cpu",
     "ubuntu-22-vulkan",
     "windows",

@@ -12,11 +12,26 @@ runs:
       id: tag
       shell: bash
       run: |
-        BUILD_NUMBER="$(git rev-list --count HEAD)"
-        SHORT_HASH="$(git rev-parse --short=7 HEAD)"
-        if [[ "${{ env.BRANCH_NAME }}" == "master" ]]; then
-          echo "name=b${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+        DATE_TAG="$(date -u +%Y-%m-%d)"
+        BASE_TAG="${DATE_TAG}"
+
+        # Find existing tags for this date (e.g., 2025-12-09, 2025-12-09-2, ...)
+        EXISTING_TAGS="$(git tag --list "${BASE_TAG}*")"
+
+        if [[ -z "${EXISTING_TAGS}" ]]; then
+          NAME="${BASE_TAG}"
         else
-          SAFE_NAME=$(echo "${{ env.BRANCH_NAME }}" | tr '/' '-')
-          echo "name=${SAFE_NAME}-b${BUILD_NUMBER}-${SHORT_HASH}" >> $GITHUB_OUTPUT
+          NEXT_SUFFIX=2
+          while read -r tag; do
+            SUFFIX="${tag#${BASE_TAG}}"
+            if [[ "${SUFFIX}" =~ ^-([0-9]+)$ ]]; then
+              N="${BASH_REMATCH[1]}"
+              if (( N >= NEXT_SUFFIX )); then
+                NEXT_SUFFIX=$((N + 1))
+              fi
+            fi
+          done <<< "${EXISTING_TAGS}"
+          NAME="${BASE_TAG}-${NEXT_SUFFIX}"
         fi
+
+        echo "name=${NAME}" >> $GITHUB_OUTPUT
