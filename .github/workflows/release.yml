@@ -270,6 +270,7 @@ jobs:
           name: llama-bin-ubuntu-vulkan-x64.tar.gz
 
   ubuntu-22-cuda:
+    if: ${{ false }}
     runs-on: ubuntu-22.04
 
     steps:
@@ -786,7 +787,6 @@ jobs:
     runs-on: ubuntu-latest
 
     needs:
-      - ubuntu-22-cuda
       - ubuntu-22-cpu
       - ubuntu-22-vulkan
       - windows
