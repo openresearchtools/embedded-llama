@@ -443,23 +443,6 @@ jobs:
 
       - name: Install OpenCL Headers and Libs
         id: install_opencl
-        if: ${{ matrix.backend == 'opencl-adreno' && matrix.arch == 'arm64' }}
-        run: |
-          git clone https://github.com/KhronosGroup/OpenCL-Headers
-          cd OpenCL-Headers
-          cmake -B build `
-            -DBUILD_TESTING=OFF `
-            -DOPENCL_HEADERS_BUILD_TESTING=OFF `
-            -DOPENCL_HEADERS_BUILD_CXX_TESTS=OFF `
-            -DCMAKE_INSTALL_PREFIX="$env:RUNNER_TEMP/opencl-arm64-release"
-          cmake --build build --target install
-          git clone https://github.com/KhronosGroup/OpenCL-ICD-Loader
-          cd OpenCL-ICD-Loader
-          cmake -B build-arm64-release `
-            -A arm64 `
-            -DCMAKE_PREFIX_PATH="$env:RUNNER_TEMP/opencl-arm64-release" `
-            -DCMAKE_INSTALL_PREFIX="$env:RUNNER_TEMP/opencl-arm64-release"
-          cmake --build build-arm64-release --target install --config release
 
       - name: Build
         id: cmake_build
@@ -931,5 +914,8 @@ jobs:
                 });
               }
             }
+
+
+
 
 

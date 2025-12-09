@@ -26,7 +26,6 @@ REQUIRED_NEEDS = [
     "macOS-arm64",
 ]
 
-
 def ensure_readme_banner() -> bool:
     readme = REPO / "README.md"
     data = readme.read_text(encoding="utf-8")
@@ -36,7 +35,6 @@ def ensure_readme_banner() -> bool:
         readme.write_text(README_BANNER + data, encoding="utf-8")
         return True
     raise SystemExit(f"README.md header not recognized; manual merge needed (found: {data[:40]!r})")
-
 
 def ensure_cmake_hook() -> bool:
     path = REPO / "tools" / "CMakeLists.txt"
@@ -57,7 +55,6 @@ def ensure_cmake_hook() -> bool:
 
     path.write_text(new_data, encoding="utf-8")
     return True
-
 
 def ensure_release_workflow() -> bool:
     if not RELEASE_WORKFLOW.exists():
@@ -97,11 +94,31 @@ def ensure_release_workflow() -> bool:
         data = data.replace(needle, env_block, 1)
         changed = True
 
-    # Remove s390x matrix entry and opencl-adreno backend if present
+    # Remove s390x matrix entry and opencl-adreno backend / steps if present
     data_old = data
     data = data.replace("          - build: 's390x'\n            os: ubuntu-24.04-s390x\n", "")
     data = data.replace(
         "          - backend: 'opencl-adreno'\n            arch: 'arm64'\n            defines: '-G \"Ninja Multi-Config\" -D CMAKE_TOOLCHAIN_FILE=cmake/arm64-windows-llvm.cmake -DCMAKE_PREFIX_PATH=\"$env:RUNNER_TEMP/opencl-arm64-release\" -DGGML_OPENCL=ON -DGGML_OPENCL_USE_ADRENO_KERNELS=ON'\n            target: 'ggml-opencl'\n",
+        "",
+    )
+    data = data.replace(
+        "        if: ${{ matrix.backend == 'opencl-adreno' && matrix.arch == 'arm64' }}\n"
+        "        run: |\n"
+        "          git clone https://github.com/KhronosGroup/OpenCL-Headers\n"
+        "          cd OpenCL-Headers\n"
+        "          cmake -B build \\\n"
+        "            -DBUILD_TESTING=OFF \\\n"
+        "            -DOPENCL_HEADERS_BUILD_TESTING=OFF \\\n"
+        "            -DOPENCL_HEADERS_BUILD_CXX_TESTS=OFF \\\n"
+        "            -DCMAKE_INSTALL_PREFIX=\"$env:RUNNER_TEMP/opencl-arm64-release\"\n"
+        "          cmake --build build --target install\n"
+        "          git clone https://github.com/KhronosGroup/OpenCL-ICD-Loader\n"
+        "          cd OpenCL-ICD-Loader\n"
+        "          cmake -B build-arm64-release \\\n"
+        "            -A arm64 \\\n"
+        "            -DCMAKE_PREFIX_PATH=\"$env:RUNNER_TEMP/opencl-arm64-release\" \\\n"
+        "            -DCMAKE_INSTALL_PREFIX=\"$env:RUNNER_TEMP/opencl-arm64-release\"\n"
+        "          cmake --build build-arm64-release --target install --config release\n",
         "",
     )
     if data != data_old:
@@ -122,17 +139,19 @@ def ensure_release_workflow() -> bool:
         data = data[:start] + new_block + remainder[end_rel:]
         changed = True
 
-    # Disable optional jobs
+    # Disable optional jobs and normalize duplicate if markers
     for job in DISABLED_JOBS:
         marker = f"{job}\n    if: ${{ false }}"
-        if marker not in data and job in data:
-            data = data.replace(job, marker, 1)
+        if job in data:
+            data = data.replace(f"{job}\n    if: ${{ false }}\n    if: ${{ false }}", marker)
+            data = data.replace(f"{job}\n    if: ${{ false }}\n", marker + "\n")
+            if marker not in data:
+                data = data.replace(job, marker, 1)
             changed = True
 
     if changed:
         RELEASE_WORKFLOW.write_text(data, encoding="utf-8")
     return changed
-
 
 def main() -> None:
     changed = []
