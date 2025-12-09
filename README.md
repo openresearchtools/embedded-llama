@@ -1,3 +1,9 @@
+# embedded-llama overlay
+
+This fork keeps upstream `llama.cpp` intact and adds an embedded, no-HTTP CLI (`llama-embedded-cli`) so chat, completion, embeddings, rerank, tokenize, etc. can run in-process without starting `llama-server`. The original upstream README begins below for reference.
+
+---
+
 # llama.cpp
 
 ![llama](https://user-images.githubusercontent.com/1991296/230134379-7181e485-c521-4d23-a0d6-f7b3b61ba524.png)

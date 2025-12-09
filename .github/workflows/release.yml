@@ -271,6 +271,68 @@ jobs:
           path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-vulkan-x64.tar.gz
           name: llama-bin-ubuntu-vulkan-x64.tar.gz
 
+  ubuntu-22-cuda:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: ccache
+        uses: ggml-org/ccache-action@v1.2.16
+        with:
+          key: ubuntu-cuda-cmake-x64
+          evict-old-files: 1d
+
+      - name: Dependencies (CUDA + build)
+        id: depends
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential libcurl4-openssl-dev
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update -y
+          sudo apt-get install -y cuda-toolkit-12-4
+
+      - name: Build
+        id: cmake_build
+        run: |
+          cmake -B build \
+            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+            -DGGML_BACKEND_DL=ON \
+            -DGGML_NATIVE=OFF \
+            -DGGML_CPU_ALL_VARIANTS=ON \
+            -DGGML_CUDA=ON \
+            ${{ env.CMAKE_ARGS }}
+          cmake --build build --config Release -j $(nproc)
+
+      - name: Determine tag name
+        id: tag
+        uses: ./.github/actions/get-tag-name
+
+      - name: Pack artifacts
+        id: pack_artifacts
+        run: |
+          cp LICENSE ./build/bin/
+          zip -y -r llama-${{ steps.tag.outputs.name }}-bin-ubuntu-cuda-x64.zip ./build/bin/*
+          tar -czvf llama-${{ steps.tag.outputs.name }}-bin-ubuntu-cuda-x64.tar.gz --transform "s,./,llama-${{ steps.tag.outputs.name }}/," -C ./build/bin .
+
+      - name: Upload artifacts (zip)
+        uses: actions/upload-artifact@v4
+        with:
+          path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-cuda-x64.zip
+          name: llama-bin-ubuntu-cuda-x64.zip
+
+      - name: Upload artifacts (tar)
+        uses: actions/upload-artifact@v4
+        with:
+          path: llama-${{ steps.tag.outputs.name }}-bin-ubuntu-cuda-x64.tar.gz
+          name: llama-bin-ubuntu-cuda-x64.tar.gz
+
   windows-cpu:
     runs-on: windows-2025
 
@@ -865,3 +927,4 @@ jobs:
                 });
               }
             }
+
